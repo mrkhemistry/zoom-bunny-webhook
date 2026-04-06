@@ -28,15 +28,11 @@ def get_access_token():
 
 
 def download_recording(download_url):
-    """Download a recording file from Zoom, returning the response for streaming.
-
-    Returns a requests.Response with stream=True so the caller can iterate chunks.
-    """
+    """Download a recording file from Zoom and return the response."""
     token = get_access_token()
     resp = requests.get(
         download_url,
         headers={"Authorization": f"Bearer {token}"},
-        stream=True,
         timeout=600,
     )
     resp.raise_for_status()

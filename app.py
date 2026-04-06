@@ -54,10 +54,9 @@ def process_recording(topic, recording_files):
             # Create video entry in Bunny.net
             video_guid = create_video(lib_info["library_id"], lib_info["api_key"], title)
 
-            # Download from Zoom and stream-upload to Bunny.net
+            # Download from Zoom and upload to Bunny.net
             zoom_resp = download_recording(download_url)
             upload_video(lib_info["library_id"], lib_info["api_key"], video_guid, zoom_resp)
-            zoom_resp.close()
 
             logger.info("Successfully uploaded: %s", title)
         except Exception:
