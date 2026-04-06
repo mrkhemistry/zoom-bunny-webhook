@@ -30,9 +30,10 @@ def get_access_token():
 def download_recording(download_url):
     """Download a recording file from Zoom and return the response."""
     token = get_access_token()
+    # Pass token as query param — Zoom redirects to CDN which strips the Authorization header
     resp = requests.get(
         download_url,
-        headers={"Authorization": f"Bearer {token}"},
+        params={"access_token": token},
         timeout=600,
     )
     resp.raise_for_status()
