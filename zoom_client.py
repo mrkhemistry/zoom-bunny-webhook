@@ -27,13 +27,13 @@ def get_access_token():
     return data["access_token"]
 
 
-def download_recording(download_url):
-    """Download a recording file from Zoom and return the response."""
-    token = get_access_token()
-    # Pass token as query param — Zoom redirects to CDN which strips the Authorization header
+def download_recording(download_url, download_token):
+    """Download a recording file from Zoom using the webhook download_token."""
+    # For recording.completed webhooks, Zoom provides a download_token in the event payload
+    # that must be used (not the OAuth access token)
     resp = requests.get(
         download_url,
-        params={"access_token": token},
+        headers={"Authorization": f"Bearer {download_token}"},
         timeout=600,
     )
     resp.raise_for_status()

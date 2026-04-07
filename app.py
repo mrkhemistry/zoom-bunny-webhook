@@ -27,7 +27,7 @@ def match_library(topic):
     return None, None
 
 
-def process_recording(topic, recording_files):
+def process_recording(topic, recording_files, download_token):
     """Download recording from Zoom and upload to Bunny.net (runs in background thread)."""
     keyword, lib_info = match_library(topic)
     if not lib_info:
@@ -55,7 +55,7 @@ def process_recording(topic, recording_files):
             video_guid = create_video(lib_info["library_id"], lib_info["api_key"], title)
 
             # Download from Zoom and upload to Bunny.net
-            zoom_resp = download_recording(download_url)
+            zoom_resp = download_recording(download_url, download_token)
             upload_video(lib_info["library_id"], lib_info["api_key"], video_guid, zoom_resp)
 
             logger.info("Successfully uploaded: %s", title)
@@ -82,6 +82,7 @@ def webhook():
     # Handle recording completed event
     if event == "recording.completed":
         payload = body.get("payload", {})
+        download_token = body.get("download_token", "")
         topic = payload.get("object", {}).get("topic", "")
         recording_files = payload.get("object", {}).get("recording_files", [])
 
@@ -90,7 +91,7 @@ def webhook():
         # Process in background so we respond to Zoom quickly
         thread = threading.Thread(
             target=process_recording,
-            args=(topic, recording_files),
+            args=(topic, recording_files, download_token),
             daemon=True,
         )
         thread.start()
