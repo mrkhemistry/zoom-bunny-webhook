@@ -9,9 +9,11 @@ ZOOM_WEBHOOK_SECRET_TOKEN = os.environ["ZOOM_WEBHOOK_SECRET_TOKEN"]
 # Bunny.net account API key
 BUNNY_API_KEY = os.environ["BUNNY_API_KEY"]
 
-# Keyword -> (library_id, library_api_key) mapping
-# Meeting topic containing keyword routes to that library
-LIBRARY_MAP = {
+# Manual upload portal PIN
+PORTAL_PIN = os.environ.get("PORTAL_PIN", "1633")
+
+# All 2026 libraries available in the manual upload portal
+LIBRARIES = {
     "JC1": {
         "library_id": 631959,
         "api_key": os.environ.get("BUNNY_JC1_API_KEY", ""),
@@ -22,4 +24,16 @@ LIBRARY_MAP = {
         "api_key": os.environ.get("BUNNY_JC2_API_KEY", ""),
         "name": "AY 2026 H2 JC2 Lesson Recording",
     },
+    "SEC3": {
+        "library_id": 631966,
+        "api_key": os.environ.get("BUNNY_SEC3_API_KEY", ""),
+        "name": "AY 2026 Sec 3 Pure Chemistry Recordings",
+    },
+}
+
+# Keyword -> library mapping for Zoom webhook routing
+# Meeting topic containing keyword routes to that library
+LIBRARY_MAP = {
+    "JC1": LIBRARIES["JC1"],
+    "JC2": LIBRARIES["JC2"],
 }

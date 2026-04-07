@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import os
 import threading
 
 from flask import Flask, request, jsonify
@@ -8,6 +9,7 @@ from flask import Flask, request, jsonify
 from config import ZOOM_WEBHOOK_SECRET_TOKEN, LIBRARY_MAP
 from zoom_client import download_recording
 from bunny_client import create_video, upload_video
+from portal import portal_bp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,6 +18,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-change-me")
+app.register_blueprint(portal_bp)
 
 
 def match_library(topic):
