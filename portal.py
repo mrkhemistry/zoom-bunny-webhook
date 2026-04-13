@@ -56,7 +56,7 @@ def libraries():
     return jsonify([
         {"key": k, "name": v["name"], "id": v["library_id"]}
         for k, v in LIBRARIES.items()
-        if v["api_key"]
+        if v["api_key"] and v.get("portal")
     ])
 
 

@@ -18,21 +18,25 @@ LIBRARIES = {
         "library_id": 631959,
         "api_key": os.environ.get("BUNNY_JC1_API_KEY", ""),
         "name": "AY 2026 H2 JC1 Lesson Recording",
+        "portal": False,  # auto-uploaded via Zoom webhook
     },
     "JC2": {
         "library_id": 631965,
         "api_key": os.environ.get("BUNNY_JC2_API_KEY", ""),
         "name": "AY 2026 H2 JC2 Lesson Recording",
+        "portal": False,  # auto-uploaded via Zoom webhook
     },
     "SEC3": {
         "library_id": 636447,
         "api_key": os.environ.get("BUNNY_SEC3_API_KEY", ""),
         "name": "AY 2026 Sec 3 Pure Chemistry Recordings",
+        "portal": True,
     },
     "SEC4": {
         "library_id": 636448,
         "api_key": os.environ.get("BUNNY_SEC4_API_KEY", ""),
         "name": "AY 2026 Sec 4 Combined Chemistry Recordings",
+        "portal": True,
     },
 }
 
