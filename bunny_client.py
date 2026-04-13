@@ -20,13 +20,14 @@ def create_video(library_id, library_api_key, title):
     return video["guid"]
 
 
-def upload_video(library_id, library_api_key, video_guid, zoom_response):
-    """Upload a video file to Bunny.net from the Zoom download response."""
-    upload_url = f"{BUNNY_VIDEO_API}/library/{library_id}/videos/{video_guid}"
+def upload_video(library_id, library_api_key, video_guid, video_data):
+    """Upload video bytes to Bunny.net.
 
-    # Read full content so we can send Content-Length (Bunny needs this to finalize the upload)
-    video_data = zoom_response.content
-    logger.info("Downloaded %d bytes from Zoom, uploading to Bunny...", len(video_data))
+    Args:
+        video_data: Raw bytes of the video file (already downloaded from Zoom).
+    """
+    upload_url = f"{BUNNY_VIDEO_API}/library/{library_id}/videos/{video_guid}"
+    logger.info("Uploading %d bytes to Bunny...", len(video_data))
 
     resp = requests.put(
         upload_url,

@@ -9,6 +9,7 @@ from flask import Flask, request, jsonify
 from config import ZOOM_WEBHOOK_SECRET_TOKEN, LIBRARY_MAP
 from zoom_client import download_recording
 from bunny_client import create_video, upload_video
+from gdrive_client import upload_to_drive
 from portal import portal_bp
 
 logging.basicConfig(
@@ -55,14 +56,23 @@ def process_recording(topic, recording_files, download_token):
         logger.info("Processing: %s", title)
 
         try:
-            # Create video entry in Bunny.net
-            video_guid = create_video(lib_info["library_id"], lib_info["api_key"], title)
-
-            # Download from Zoom and upload to Bunny.net
+            # Download from Zoom (keep bytes for both Bunny + Drive)
             zoom_resp = download_recording(download_url, download_token)
-            upload_video(lib_info["library_id"], lib_info["api_key"], video_guid, zoom_resp)
+            video_data = zoom_resp.content
 
-            logger.info("Successfully uploaded: %s", title)
+            # Create video entry in Bunny.net and upload
+            video_guid = create_video(lib_info["library_id"], lib_info["api_key"], title)
+            upload_video(lib_info["library_id"], lib_info["api_key"], video_guid, video_data)
+
+            logger.info("Successfully uploaded to Bunny: %s", title)
+
+            # Backup to Google Drive
+            try:
+                drive_filename = f"{title}.mp4"
+                upload_to_drive(drive_filename, video_data)
+            except Exception:
+                logger.exception("Google Drive backup failed (non-fatal): %s", title)
+
         except Exception:
             logger.exception("Failed to process recording: %s", title)
 
