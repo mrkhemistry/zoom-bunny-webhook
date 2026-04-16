@@ -13,10 +13,11 @@ _credentials = None
 _service = None
 
 GDRIVE_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "")
-# drive.file scope only grants access to files/folders the service account
-# created OR has been explicitly shared into. The backup parent folder must
-# be shared with the service account email.
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+# "drive" scope is required so files.create can reference UI-shared parent
+# folders. drive.file alone 404s on UI-shared parents even when the SA has
+# write permission. The SA is still only able to see folders explicitly
+# shared with its email — it does NOT get access to the user's whole Drive.
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def _get_service():
