@@ -13,6 +13,9 @@ _credentials = None
 _service = None
 
 GDRIVE_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "")
+# drive.file scope only grants access to files/folders the service account
+# created OR has been explicitly shared into. The backup parent folder must
+# be shared with the service account email.
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
@@ -65,3 +68,114 @@ def upload_to_drive(filename, video_data):
 
     logger.info("Google Drive upload complete: %s (id: %s)", file["name"], file["id"])
     return file["id"]
+
+
+# ---------------------------------------------------------------------------
+# Generic helpers used by backup_cron.py
+# ---------------------------------------------------------------------------
+
+_FOLDER_MIME = "application/vnd.google-apps.folder"
+
+
+def create_folder(name, parent_id):
+    """Create a folder under parent_id. Returns the folder ID.
+
+    Drive allows multiple folders with the same name — we don't dedupe here.
+    The caller is responsible for choosing unique names if needed.
+    """
+    service = _get_service()
+    if not service:
+        raise RuntimeError("Google Drive service unavailable")
+
+    metadata = {
+        "name": name,
+        "mimeType": _FOLDER_MIME,
+        "parents": [parent_id],
+    }
+    folder = service.files().create(body=metadata, fields="id, name").execute()
+    logger.info("Created Drive folder '%s' (id: %s)", folder["name"], folder["id"])
+    return folder["id"]
+
+
+def find_child_folder(name, parent_id):
+    """Find a folder with the given name under parent_id. Returns id or None."""
+    service = _get_service()
+    if not service:
+        return None
+
+    # Escape single quotes in the name for the Drive query syntax.
+    safe_name = name.replace("'", "\\'")
+    query = (
+        f"name = '{safe_name}' "
+        f"and mimeType = '{_FOLDER_MIME}' "
+        f"and '{parent_id}' in parents "
+        f"and trashed = false"
+    )
+    resp = service.files().list(
+        q=query,
+        fields="files(id, name)",
+        pageSize=1,
+    ).execute()
+    files = resp.get("files", [])
+    return files[0]["id"] if files else None
+
+
+def upload_bytes(filename, data, mimetype, parent_id):
+    """Upload arbitrary bytes to Drive under parent_id. Returns the file ID."""
+    service = _get_service()
+    if not service:
+        raise RuntimeError("Google Drive service unavailable")
+
+    metadata = {"name": filename, "parents": [parent_id]}
+    media = MediaInMemoryUpload(data, mimetype=mimetype, resumable=False)
+    file = service.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id, name, size",
+    ).execute()
+    size_kb = len(data) / 1024
+    logger.info("Uploaded %s (%.1f KB) to Drive (id: %s)", filename, size_kb, file["id"])
+    return file["id"]
+
+
+def list_child_folders(parent_id):
+    """List all non-trashed folders directly under parent_id.
+
+    Returns a list of {id, name}. Paginates through all results.
+    """
+    service = _get_service()
+    if not service:
+        return []
+
+    query = (
+        f"mimeType = '{_FOLDER_MIME}' "
+        f"and '{parent_id}' in parents "
+        f"and trashed = false"
+    )
+    folders = []
+    page_token = None
+    while True:
+        resp = service.files().list(
+            q=query,
+            fields="nextPageToken, files(id, name)",
+            pageSize=1000,
+            pageToken=page_token,
+        ).execute()
+        folders.extend(resp.get("files", []))
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    return folders
+
+
+def delete_folder(folder_id):
+    """Permanently delete a folder (and its contents) from Drive.
+
+    Uses Files.delete (permanent). For soft-delete, use Files.update with
+    trashed=true instead.
+    """
+    service = _get_service()
+    if not service:
+        raise RuntimeError("Google Drive service unavailable")
+    service.files().delete(fileId=folder_id).execute()
+    logger.info("Deleted Drive folder id: %s", folder_id)
