@@ -197,6 +197,47 @@ def prune_old_backups(parent_id):
     return deleted
 
 
+def _diagnose_drive_access(parent_id):
+    """Log what the service account can actually see. Helps debug 404s."""
+    service = _get_service()
+    if not service:
+        return
+
+    # Pull SA email from the credentials JSON.
+    try:
+        sa_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "{}"))
+        logger.info("Drive diag: service account = %s", sa_info.get("client_email", "?"))
+        logger.info("Drive diag: SA project_id = %s", sa_info.get("project_id", "?"))
+    except Exception:
+        logger.exception("Drive diag: failed to parse SA JSON")
+
+    # Try to read the parent folder directly (this is the thing that's failing).
+    try:
+        meta = service.files().get(
+            fileId=parent_id,
+            fields="id,name,mimeType,driveId,shared,ownedByMe,capabilities(canAddChildren)",
+            supportsAllDrives=True,
+        ).execute()
+        logger.info("Drive diag: parent metadata = %s", meta)
+    except Exception as e:
+        logger.error("Drive diag: cannot GET parent %s — %s", parent_id, e)
+
+    # List up to 10 files the SA can actually see, so we know the creds work at all.
+    try:
+        resp = service.files().list(
+            pageSize=10,
+            fields="files(id,name,mimeType,parents)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
+        files = resp.get("files", [])
+        logger.info("Drive diag: SA can see %d file(s) total (first 10 shown):", len(files))
+        for f in files:
+            logger.info("  - %s (%s, %s)", f.get("name"), f.get("id"), f.get("mimeType"))
+    except Exception as e:
+        logger.error("Drive diag: cannot list any files — %s", e)
+
+
 def main():
     parent_id = os.environ.get("GDRIVE_BACKUP_PARENT_ID", "")
     if not parent_id:
@@ -206,6 +247,9 @@ def main():
     if _get_service() is None:
         logger.error("Google Drive service unavailable (check GOOGLE_SERVICE_ACCOUNT_JSON)")
         return 1
+
+    # Run diagnostics up front so a parent-not-found failure gives us actionable info.
+    _diagnose_drive_access(parent_id)
 
     folder_name = _pick_date_folder_name(parent_id)
     logger.info("Starting monthly backup. Drive folder: %s", folder_name)
