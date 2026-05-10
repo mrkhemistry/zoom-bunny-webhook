@@ -6,9 +6,6 @@ ZOOM_CLIENT_ID = os.environ["ZOOM_CLIENT_ID"]
 ZOOM_CLIENT_SECRET = os.environ["ZOOM_CLIENT_SECRET"]
 ZOOM_WEBHOOK_SECRET_TOKEN = os.environ["ZOOM_WEBHOOK_SECRET_TOKEN"]
 
-# Bunny.net account API key
-BUNNY_API_KEY = os.environ["BUNNY_API_KEY"]
-
 # Bunny libraries for Zoom webhook auto-upload
 LIBRARIES = {
     "JC1": {
