@@ -4,7 +4,7 @@ import os
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaInMemoryUpload
+from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,11 @@ def _get_service():
     return _service
 
 
-def upload_to_drive(filename, video_data):
-    """Upload video bytes to Google Drive backup folder.
+def upload_file_to_drive(filename, file_path):
+    """Stream a file from disk into the Google Drive backup folder.
 
-    Args:
-        filename: Name for the file in Drive (e.g. "JC1 - speaker_view.mp4")
-        video_data: Raw bytes of the video file
+    Uses MediaFileUpload (resumable, chunked) so memory usage stays flat
+    regardless of video size.
     """
     if not GDRIVE_FOLDER_ID:
         logger.info("GDRIVE_FOLDER_ID not set — skipping Google Drive backup")
@@ -57,9 +56,9 @@ def upload_to_drive(filename, video_data):
         "parents": [GDRIVE_FOLDER_ID],
     }
 
-    media = MediaInMemoryUpload(video_data, mimetype="video/mp4", resumable=True)
-
-    logger.info("Uploading %s (%.1f MB) to Google Drive...", filename, len(video_data) / 1024 / 1024)
+    media = MediaFileUpload(file_path, mimetype="video/mp4", resumable=True)
+    size_mb = os.path.getsize(file_path) / 1024 / 1024
+    logger.info("Uploading %s (%.1f MB) to Google Drive...", filename, size_mb)
 
     file = service.files().create(
         body=file_metadata,

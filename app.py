@@ -2,14 +2,15 @@ import hashlib
 import hmac
 import logging
 import os
+import tempfile
 import threading
 
 from flask import Flask, request, jsonify
 
 from config import ZOOM_WEBHOOK_SECRET_TOKEN, LIBRARY_MAP
-from zoom_client import download_recording
-from bunny_client import create_video, upload_video
-from gdrive_client import upload_to_drive
+from zoom_client import download_recording_to_file
+from bunny_client import create_video, upload_video_from_file
+from gdrive_client import upload_file_to_drive
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,26 +54,35 @@ def process_recording(topic, recording_files, download_token):
 
         logger.info("Processing: %s", title)
 
-        try:
-            # Download from Zoom (keep bytes for both Bunny + Drive)
-            zoom_resp = download_recording(download_url, download_token)
-            video_data = zoom_resp.content
+        # Buffer the Zoom download to disk (not RAM) so memory stays flat
+        # regardless of video size. /tmp is ephemeral on Render — fine for our
+        # use since we delete after upload anyway.
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
 
-            # Create video entry in Bunny.net and upload
+        try:
+            size = download_recording_to_file(download_url, download_token, tmp_path)
+            logger.info("Downloaded %d bytes from Zoom to %s", size, tmp_path)
+
             video_guid = create_video(lib_info["library_id"], lib_info["api_key"], title)
-            upload_video(lib_info["library_id"], lib_info["api_key"], video_guid, video_data)
+            upload_video_from_file(lib_info["library_id"], lib_info["api_key"], video_guid, tmp_path)
 
             logger.info("Successfully uploaded to Bunny: %s", title)
 
-            # Backup to Google Drive
             try:
                 drive_filename = f"{title}.mp4"
-                upload_to_drive(drive_filename, video_data)
+                upload_file_to_drive(drive_filename, tmp_path)
             except Exception:
                 logger.exception("Google Drive backup failed (non-fatal): %s", title)
 
         except Exception:
             logger.exception("Failed to process recording: %s", title)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 @app.route("/webhook", methods=["POST"])

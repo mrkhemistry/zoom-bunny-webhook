@@ -27,14 +27,23 @@ def get_access_token():
     return data["access_token"]
 
 
-def download_recording(download_url, download_token):
-    """Download a recording file from Zoom using the webhook download_token."""
-    # For recording.completed webhooks, Zoom provides a download_token in the event payload
-    # that must be used (not the OAuth access token)
-    resp = requests.get(
+def download_recording_to_file(download_url, download_token, file_path):
+    """Stream a recording from Zoom to disk. Returns size in bytes.
+
+    Uses the webhook's `download_token` (not the OAuth access token).
+    Streams in 8 MiB chunks so memory usage stays flat regardless of
+    video size — important for hosts with low RAM ceilings.
+    """
+    with requests.get(
         download_url,
         headers={"Authorization": f"Bearer {download_token}"},
+        stream=True,
         timeout=600,
-    )
-    resp.raise_for_status()
-    return resp
+    ) as resp:
+        resp.raise_for_status()
+        with open(file_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8 * 1024 * 1024):
+                if chunk:
+                    f.write(chunk)
+    import os
+    return os.path.getsize(file_path)
