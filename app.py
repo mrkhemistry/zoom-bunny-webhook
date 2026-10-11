@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import threading
+import time
 
 from flask import Flask, request, jsonify
 
@@ -28,6 +29,42 @@ def match_library(topic):
         if keyword.upper() in topic_upper:
             return keyword, lib_info
     return None, None
+
+
+# Zoom can fire recording.completed before the file is fully available and
+# still answer 200 with a fraction of it (10 Oct 2026: 0.5 MB of a 48.6 MB
+# recording, which Bunny then failed to encode). Waits between attempts.
+DOWNLOAD_RETRY_DELAYS = [60, 180, 600]
+
+
+def download_complete_recording(download_url, download_token, tmp_path, expected_size, title):
+    """Download until the file matches Zoom's stated size. Returns True on success."""
+    for attempt in range(len(DOWNLOAD_RETRY_DELAYS) + 1):
+        if attempt:
+            delay = DOWNLOAD_RETRY_DELAYS[attempt - 1]
+            logger.info("Retrying download of %s in %d s (attempt %d)", title, delay, attempt + 1)
+            time.sleep(delay)
+
+        try:
+            size = download_recording_to_file(download_url, download_token, tmp_path)
+        except Exception:
+            logger.exception("Download attempt %d failed for %s", attempt + 1, title)
+            continue
+
+        logger.info("Downloaded %d bytes from Zoom to %s", size, tmp_path)
+
+        if not expected_size:
+            logger.warning("Zoom gave no file_size for %s; cannot verify download", title)
+            return size > 0
+        if size >= expected_size:
+            return True
+
+        logger.warning(
+            "Incomplete download for %s: got %d of %d bytes", title, size, expected_size
+        )
+
+    logger.error("Giving up on %s: download never matched Zoom's file size; NOT uploaded to Bunny", title)
+    return False
 
 
 def process_recording(topic, recording_files, download_token):
@@ -61,8 +98,9 @@ def process_recording(topic, recording_files, download_token):
         tmp.close()
 
         try:
-            size = download_recording_to_file(download_url, download_token, tmp_path)
-            logger.info("Downloaded %d bytes from Zoom to %s", size, tmp_path)
+            expected_size = rec_file.get("file_size")
+            if not download_complete_recording(download_url, download_token, tmp_path, expected_size, title):
+                continue
 
             video_guid = create_video(lib_info["library_id"], lib_info["api_key"], title)
             upload_video_from_file(lib_info["library_id"], lib_info["api_key"], video_guid, tmp_path)
